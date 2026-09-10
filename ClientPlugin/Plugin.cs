@@ -1,20 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Reflection;
+using ClientPlugin.Anomaly;
 using ClientPlugin.Aurora;
+using ClientPlugin.RichHud;
 using ClientPlugin.Settings;
 using ClientPlugin.Settings.Layouts;
-using HarmonyLib;
 using Sandbox.Graphics.GUI;
-using VRage.FileSystem;
 using VRage.Plugins;
 using VRage.Utils;
 
-// Define assembly version when compiled by Pulsar
 #if !DEV_BUILD
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 #endif
 
 namespace ClientPlugin;
@@ -32,28 +31,22 @@ public class Plugin : IPlugin
     {
         Instance = this;
         Instance.settingsGenerator = new SettingsGenerator();
-
-        // When Pulsar builds the plugin from source it calls LoadAssets with the folder the
-        // shader was copied into; that wins. Otherwise (msbuild/IDE build) fall back to the
-        // copy embedded into the assembly.
-        if (AuroraRenderer.ShaderFilePath == null)
-            ExtractEmbeddedShader();
-
         Config.Current.PropertyChanged += OnConfigPropertyChanged;
-
-        var harmony = new Harmony(Name);
-        harmony.PatchAll(Assembly.GetExecutingAssembly());
+        AnomalyTerminalHook.TryInstall();
     }
 
     public void Dispose()
     {
-        // IMPORTANT: Do NOT call harmony.UnpatchAll() here! It may break other plugins.
+        ConfigStorage.FlushPending(true);
         AuroraRenderer.Publish(null);
+        AuroraSampler.OnSessionUnloading();
         Instance = null;
     }
 
     public void Update()
     {
+        AnomalyTerminalHook.TryInstall();
+        ConfigStorage.FlushPending();
         if (updateFailed)
             return;
         try
@@ -68,51 +61,20 @@ public class Plugin : IPlugin
         }
     }
 
-    // Called by Pulsar with the folder the plugin's asset files were copied into.
-    // The game's shader compiler loads shaders from disk, so the .hlsl file has to be there.
+    // ReSharper disable once UnusedMember.Global
+    public void LoadAssets(IReadOnlyDictionary<string, string> assets)
+    {
+        if (assets != null && assets.TryGetValue("AnomalyPack", out var root))
+            AnomalyBridge.TryRegisterPack(root);
+        else
+            MyLog.Default.Warning($"{Name}: AnomalyPack asset missing");
+        AnomalyTerminalHook.TryInstall();
+    }
+
     // ReSharper disable once UnusedMember.Global
     public void LoadAssets(string folder)
     {
-        try
-        {
-            var path = Path.Combine(folder, "AuroraBorealis.hlsl");
-            if (File.Exists(path))
-                AuroraRenderer.ShaderFilePath = path;
-            else
-                MyLog.Default.Warning($"{Name}: Shader not found in the asset folder: {path}");
-        }
-        catch (Exception e)
-        {
-            MyLog.Default.Error($"{Name}: Failed to load assets from {folder}: {e}");
-        }
-    }
-
-    // Fallback for msbuild/IDE builds, which embed the shader into the assembly:
-    // extract it into the plugin's storage folder and use that absolute path.
-    private static void ExtractEmbeddedShader()
-    {
-        try
-        {
-            using (var resource = Assembly.GetExecutingAssembly()
-                       .GetManifestResourceStream("ClientPlugin.Shaders.AuroraBorealis.hlsl"))
-            {
-                if (resource == null)
-                    return;
-
-                var directory = Path.Combine(MyFileSystem.UserDataPath, "Storage", Name);
-                Directory.CreateDirectory(directory);
-                var path = Path.Combine(directory, "AuroraBorealis.hlsl");
-
-                using (var file = File.Create(path))
-                    resource.CopyTo(file);
-
-                AuroraRenderer.ShaderFilePath = path;
-            }
-        }
-        catch (Exception e)
-        {
-            MyLog.Default.Error($"{Name}: Failed to extract the embedded shader: {e}");
-        }
+        // Named AnomalyPack is registered from the dictionary overload.
     }
 
     private static void OnConfigPropertyChanged(object sender, PropertyChangedEventArgs e)

@@ -20,7 +20,7 @@
     <Description>Renders volumetric Aurora Borealis (Northern Lights)
 over the poles of planets which have an atmosphere.
 
-Open the plugin's Settings for the configuration.
+Requires the Anomaly Shader Framework. Configure under Anomaly Shaders → Aurora Borealis → Settings (Rich HUD Master) or the Pulsar plugin dialog.
         
 Original algorithm:
 
@@ -31,14 +31,16 @@ For support please join the Pulsar Discord: https://discord.gg/z8ZczP2YZY
 Please consider supporting my work on Patreon: https://www.patreon.com/semods
     </Description>
 
+    <DependencyIds>
+        <Id>A9C29274-E447-49EE-881B-C980E6D190FD</Id>
+    </DependencyIds>
+
     <!-- Only source code in the Directory entries listed in SourceDirectories is compiled. Exclude any test projects or similar. -->
     <SourceDirectories>
         <Directory>ClientPlugin</Directory>
     </SourceDirectories>
 
-    <!-- The HLSL shader source is copied onto disk, because the game's shader compiler loads
-         shaders from files. Needed when Pulsar builds the plugin from source. -->
-    <AssetFolder>ClientPlugin/Shaders/</AssetFolder>
+    <Asset Name="AnomalyPack" Path="Pack" />
 
     <!-- The current plugin version's commit hash -->
     <Commit>TODO Git commit hash</Commit>

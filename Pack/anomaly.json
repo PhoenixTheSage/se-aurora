@@ -1,0 +1,17 @@
+{
+  "id": "aurora.borealis",
+  "name": "Aurora Borealis",
+  "passes": [
+    {
+      "id": "aurora.borealis.curtain",
+      "slot": "AfterAtmosphere",
+      "file": "Fullscreen/AfterAtmosphere/AuroraBorealis.hlsl",
+      "compose": "IsolatedAdd",
+      "temporal": ["InColor", "Reactive"],
+      "binds": [
+        { "catalog": "aurora.noise", "slot": 7 },
+        { "catalog": "aurora.ramp", "slot": 8 }
+      ]
+    }
+  ]
+}
