@@ -31,6 +31,7 @@ public class Config : INotifyPropertyChanged
 
     private bool enabled = true;
     private float intensity = 0.5f;
+    private float hdrLift = 4f;
     private float contrast = 3f;
     private float groundLight = 0.1f;
     private AuroraQuality quality = AuroraQuality.High;
@@ -64,11 +65,18 @@ public class Config : INotifyPropertyChanged
         set => SetField(ref enabled, value);
     }
 
-    [Slider(0f, 1f, 0.01f, SliderAttribute.SliderType.Float, description: "HDR brightness multiplier of the aurora")]
+    [Slider(0f, 1f, 0.01f, SliderAttribute.SliderType.Float, description: "Artistic brightness of the aurora (SDR and HDR)")]
     public float Intensity
     {
         get => intensity;
         set => SetField(ref intensity, value);
+    }
+
+    [Slider(1f, 16f, 0.5f, SliderAttribute.SliderType.Float, label: "HDR lift", description: "Extra emission when an HDR Display pack is live (AfterUpscale). 1 = same as SDR; ignored without a Display tenant.")]
+    public float HdrLift
+    {
+        get => hdrLift;
+        set => SetField(ref hdrLift, value);
     }
 
     [Slider(1f, 6f, 0.1f, SliderAttribute.SliderType.Float, description: "Separation between the bright curtain cores and the haze between them; higher is punchier, 2 is the soft look of earlier versions")]
@@ -189,7 +197,7 @@ public class Config : INotifyPropertyChanged
         set => SetField(ref animationSpeed, value);
     }
 
-    [Checkbox(description: "Show the aurora only on the night side of the planet")]
+    [Checkbox(description: "Curtains and ground glow only on the night side (per sample). The pass still turns off when the camera is in daylight.")]
     public bool NightOnly
     {
         get => nightOnly;

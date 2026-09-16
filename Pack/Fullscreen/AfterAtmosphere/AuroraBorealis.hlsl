@@ -30,6 +30,8 @@ static const float PatchFeather = 0.12;
 #define GroundLight AnomalyPassUniform6.w
 #define PatchScroll AnomalyPassUniform7
 #define Contrast AnomalyPassUniform8.x
+#define NightOnly AnomalyPassUniform8.y
+#define PlanetRadius AnomalyPassUniform8.z
 #define PerlinTex AnomalyPackSrv0
 #define ColorRamp AnomalyPackSrv1
 
@@ -79,11 +81,14 @@ float3 UnpackGbufferNormal(float2 enc)
     return n;
 }
 
-void WriteColor(inout float4 output, float3 color)
+void WriteColor(inout float4 output, float3 color, float hitT)
 {
-    output = float4(color, 1);
-    if (!all(isfinite(output)))
+    if (!all(isfinite(color)) || !isfinite(hitT))
+    {
         output = 0;
+        return;
+    }
+    output = float4(color, max(hitT, 0));
 }
 
 float PatchMask(float2 uvBase)
@@ -111,6 +116,16 @@ float3 ViewToWorld(float3 view)
          + AnomalyCameraToWorld[2].xyz * view.z;
 }
 
+// NightOnly used to be camera zenith × sun only. A terminator view still
+// IsolatedAdd'd the near-side shell over the sunlit disk — SDR LBuffer
+// read that as a fullscreen lift, not curtains. Occult per sample.
+float NightAt(float3 posCamRel, float3 center, float radius)
+{
+    if (NightOnly < 0.5)
+        return 1.0;
+    return 1.0 - AnomalySunVisibility(posCamRel, center, max(radius, 1.0));
+}
+
 void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 output : SV_Target0)
 {
     float intensity = MasterIntensity * FadeFactor;
@@ -127,6 +142,7 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
     float3 center = CenterInner.xyz;
     float3 pole = PoleOuter.xyz;
     float3 tangent2 = cross(pole, Tangent1);
+    float planetR = PlanetRadius > 1.0 ? PlanetRadius : innerR;
 
     float2 outerT = RaySphere(0, rayDir, center, outerR);
     if (outerT.y <= 0)
@@ -169,14 +185,15 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
                     AnomalyGBuffer1.SampleLevel(AnomalyPointSampler, uv, 0).xy)));
                 float skyVisibility = saturate(dot(normal, up) * 0.5 + 0.5);
                 float3 glowColor = ColorRamp.SampleLevel(AnomalyLinearSampler, float2(0.15, 0.5), 0).rgb;
-                ground = albedo * glowColor * (glow * skyVisibility * GroundLight);
+                float night = NightAt(rayDir * sceneDist, center, planetR);
+                ground = albedo * glowColor * (glow * skyVisibility * GroundLight * night);
             }
         }
     }
 
     if (tMax <= tMin)
     {
-        WriteColor(output, ground * intensity);
+        WriteColor(output, ground * intensity, hasScene ? sceneDist : 0);
         return;
     }
 
@@ -196,7 +213,7 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
     float marchLength = len0 + len1;
     if (marchLength <= 0)
     {
-        WriteColor(output, ground * intensity);
+        WriteColor(output, ground * intensity, hasScene ? sceneDist : 0);
         return;
     }
 
@@ -213,21 +230,26 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
         len1 = min(len1, marchLength - len0);
 
     float stepBudget = (float)clamp((int)StepCount, 0, AURORA_MAX_STEPS);
-    // Spectator / near-field: tMin is the hit distance. A dive into the
-    // curtain fills the view and a full-budget march × 6 samples/pixel TDRs.
-    // Ground view has tMin ≈ shell altitude >> thickness, so this stays 1.
-    float nearField = saturate(tMin / (shellThickness * 4.0));
-    stepBudget = lerp(12.0, stepBudget, nearField);
-    stepBudget *= saturate(AnomalySafetyScale);
-    int steps = (int)(stepBudget + 0.5);
+    // Per-ray tMin stays large on grazing chords while the camera sits in
+    // the shell. Camera-to-shell is uniform so a close spectator cheapens
+    // every pixel. AnomalyMarchSteps owns SafetyScale (do not floor it).
+    float camToVolume = abs(length(center) - outerR);
+    int steps = AnomalyMarchSteps(stepBudget, 4, AURORA_MAX_STEPS,
+        camToVolume, 0.0, max(shellThickness * 2.0, 1e-5));
     if (steps <= 0)
     {
-        WriteColor(output, ground * intensity);
+        WriteColor(output, ground * intensity, hasScene ? sceneDist : 0);
         return;
     }
     float stepLen = marchLength / (float)steps;
-    float jitter = Hash21(pos.xy) * Dither;
+    // Cranley-Patterson along the ray so a stable 4-step slam still
+    // covers the interval across frames (DLSS / packed hit t). Do not
+    // hash the frame into the pixel seed — that strobes when steps drop.
+    float jitter = frac(Hash21(pos.xy) + float(AnomalyLightingFrameIndex & 1023u) * 0.61803398875)
+                 * Dither;
     float3 accum = 0;
+    float hitT = 0;
+    float hitWeight = 0;
 
     [loop]
     for (int i = 0; i < AURORA_MAX_STEPS; i++)
@@ -245,6 +267,10 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
 
         float bandMask = BandMask(abs(dot(dir, pole)));
         if (bandMask <= 0)
+            continue;
+
+        float night = NightAt(rayDir * t, center, planetR);
+        if (night <= 0)
             continue;
 
         float2 uvBase = float2(dot(dir, Tangent1), dot(dir, tangent2));
@@ -273,10 +299,23 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
         // below it down, so raising it darkens the haze between the curtains without
         // dimming their cores. Brightness is then the intensity's job alone.
         float emission = pow(curtain, Contrast);
-        accum += ramp.rgb * (ramp.a * emission * bandMask * patchMask);
+        float w = ramp.a * emission * bandMask * patchMask * night;
+        accum += ramp.rgb * w;
+        hitT += t * w;
+        hitWeight += w;
     }
 
+    if (hitWeight > 1e-6)
+        hitT /= hitWeight;
+    else if (hasScene)
+        hitT = sceneDist;
+
+    // IsolatedAdd is emission. 1-exp(-optical) saturates in-band pixels to
+    // ~Intensity and the merge lifts LBuffer (a fullscreen brighten on SDR).
+    // Stay optically thin so curtain contrast survives; Reinhard shoulders
+    // grazing chords (marchLength is capped at 8× thickness).
     float3 optical = accum * (stepLen / shellThickness);
-    float3 color = intensity * (1 - exp(-optical));
-    WriteColor(output, color + ground * intensity);
+    float3 color = intensity * optical;
+    color = color / (1.0 + color);
+    WriteColor(output, color + ground * intensity, hitT);
 }

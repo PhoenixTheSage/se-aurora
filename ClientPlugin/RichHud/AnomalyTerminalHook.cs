@@ -80,7 +80,11 @@ internal static class AnomalyTerminalHook
         Invoke(t, page, "Slider", "Intensity", 0f, 1f,
             (Func<float>)(() => Config.Current.Intensity),
             (Action<float>)(v => Set(() => Config.Current.Intensity = v)),
-            "HDR brightness multiplier of the aurora", 0.01f);
+            "Artistic brightness of the aurora (SDR and HDR)", 0.01f);
+        Invoke(t, page, "Slider", "HDR lift", 1f, 16f,
+            (Func<float>)(() => Config.Current.HdrLift),
+            (Action<float>)(v => Set(() => Config.Current.HdrLift = v)),
+            "Extra emission when an HDR Display pack is live (AfterUpscale). 1 = same as SDR; ignored without a Display tenant.", 0.5f);
         Invoke(t, page, "Slider", "Contrast", 1f, 6f,
             (Func<float>)(() => Config.Current.Contrast),
             (Action<float>)(v => Set(() => Config.Current.Contrast = v)),

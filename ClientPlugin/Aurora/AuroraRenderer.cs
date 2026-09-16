@@ -48,6 +48,8 @@ public static class AuroraRenderer
         if (!config.NightOnly)
             return 1f;
 
+        // Cheap whole-pass gate. The shader still occults per sample so a
+        // terminator view cannot IsolatedAdd the sunlit disk.
         var up = (Vector3)Vector3D.Normalize(
             MyRender11.Environment.Matrices.CameraPosition - snap.PlanetCenter);
         var dirToSun = -MyRender11.Environment.Data.EnvironmentLight.SunLightDirection;
@@ -110,6 +112,9 @@ public static class AuroraRenderer
         float Frac(double v) => (float)(v - Math.Floor(v));
         float coverage = MathHelper.Clamp(config.Coverage, 0f, 1f);
         float patchThreshold = 0.9f - 0.8f * coverage;
+        float hdrLift = AnomalyBridge.HasDisplayTenant
+            ? MathHelper.Clamp(config.HdrLift, 1f, 16f)
+            : 1f;
 
         return new[]
         {
@@ -119,11 +124,11 @@ public static class AuroraRenderer
             sinHi, feather, tiling1, tiling2,
             Frac(t * rate1X), Frac(t * rate1Y), Frac(t * rate2X), Frac(t * rate2Y),
             Frac(t * rate1X * columnScale), Frac(t * rate1Y * columnScale), tiling1 * columnScale,
-            config.Intensity * snap.DensityFactor,
+            config.Intensity * snap.DensityFactor * hdrLift,
             Math.Min(config.StepCount, Config.MaxRaymarchSteps), fadeFactor, patchThreshold, config.GroundLight,
             Frac(t * 0.0016), Frac(t * -0.0007), Frac(t * -0.0011), Frac(t * 0.0009),
-            // Uniform8.x = curtain contrast (original GroundParams.y).
-            Math.Max(config.Contrast, 1f), 0f, 0f, 0f,
+            // Uniform8: contrast, NightOnly (per-sample sun occultation), hill radius.
+            Math.Max(config.Contrast, 1f), config.NightOnly ? 1f : 0f, snap.SurfaceRadius, 0f,
         };
     }
 }

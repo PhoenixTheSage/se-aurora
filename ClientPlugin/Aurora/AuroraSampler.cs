@@ -142,6 +142,6 @@ public static class AuroraSampler
         float fadeStart = (float)(planet.AtmosphereRadius * fadeStartFactor);
         float fadeEnd = (float)(planet.AtmosphereRadius * fadeEndFactor);
 
-        return new AuroraSnapshot(center, inner, outer, pole, densityFactor, fadeStart, fadeEnd);
+        return new AuroraSnapshot(center, inner, outer, pole, densityFactor, fadeStart, fadeEnd, surface);
     }
 }

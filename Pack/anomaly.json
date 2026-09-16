@@ -7,7 +7,8 @@
       "slot": "AfterAtmosphere",
       "file": "Fullscreen/AfterAtmosphere/AuroraBorealis.hlsl",
       "compose": "IsolatedAdd",
-      "temporal": ["InColor", "Reactive"],
+      "priority": -10,
+      "temporal": ["InColor", "ContributeVelocity"],
       "binds": [
         { "catalog": "aurora.noise", "slot": 7 },
         { "catalog": "aurora.ramp", "slot": 8 }

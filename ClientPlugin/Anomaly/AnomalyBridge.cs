@@ -27,11 +27,41 @@ internal static class AnomalyBridge
     static bool registered;
     static MethodInfo setUniforms;
     static MethodInfo setEnabled;
+    static PropertyInfo hasDisplayTenant;
     static MethodInfo catalogPublish;
     static MethodInfo catalogUnpublish;
     static object noisePublished;
     static object rampPublished;
     static MethodInfo publishedPublish;
+
+    /// <summary>
+    /// Anomaly AfterUpscale tenant set <c>TemporalPolicy.Display</c>.
+    /// Live each get — HDR may register after this pack.
+    /// </summary>
+    public static bool HasDisplayTenant
+    {
+        get
+        {
+            PropertyInfo prop;
+            lock (Gate)
+            {
+                if (hasDisplayTenant == null)
+                    ProbeDisplayTenantUnlocked();
+                prop = hasDisplayTenant;
+            }
+
+            if (prop == null)
+                return false;
+            try
+            {
+                return prop.GetValue(null) is true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 
     public static bool TryRegisterPack(string root)
     {
@@ -68,6 +98,7 @@ internal static class AnomalyBridge
 
             setUniforms = fullscreen?.GetMethod("SetUniforms", BindingFlags.Public | BindingFlags.Static);
             setEnabled = fullscreen?.GetMethod("SetEnabled", BindingFlags.Public | BindingFlags.Static);
+            hasDisplayTenant = owned?.GetProperty("HasDisplayTenant", BindingFlags.Public | BindingFlags.Static);
             catalogPublish = catalog?.GetMethod("Publish", BindingFlags.Public | BindingFlags.Static);
             catalogUnpublish = catalog?.GetMethod("Unpublish", BindingFlags.Public | BindingFlags.Static);
             if (published != null)
@@ -178,6 +209,28 @@ internal static class AnomalyBridge
             {
                 // Anomaly already tearing down.
             }
+        }
+    }
+
+    static void ProbeDisplayTenantUnlocked()
+    {
+        if (hasDisplayTenant != null)
+            return;
+        foreach (var assembly in SafeAssemblies())
+        {
+            Type owned;
+            try
+            {
+                owned = assembly.GetType(OwnedPassType, false, false);
+            }
+            catch
+            {
+                continue;
+            }
+
+            hasDisplayTenant = owned?.GetProperty("HasDisplayTenant", BindingFlags.Public | BindingFlags.Static);
+            if (hasDisplayTenant != null)
+                return;
         }
     }
 

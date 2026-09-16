@@ -17,6 +17,9 @@ public sealed class AuroraSnapshot
     /// <summary>Shell outer radius in meters.</summary>
     public readonly float OuterRadius;
 
+    /// <summary>Planet hill / average radius in meters (sun occultation).</summary>
+    public readonly float SurfaceRadius;
+
     /// <summary>Magnetic pole axis (unit vector, planet's local up).</summary>
     public readonly Vector3 PoleAxis;
 
@@ -34,11 +37,12 @@ public sealed class AuroraSnapshot
     public readonly float FadeEndDistance;
 
     public AuroraSnapshot(Vector3D planetCenter, float innerRadius, float outerRadius, Vector3 poleAxis,
-        float densityFactor, float fadeStartDistance, float fadeEndDistance)
+        float densityFactor, float fadeStartDistance, float fadeEndDistance, float surfaceRadius)
     {
         PlanetCenter = planetCenter;
         InnerRadius = innerRadius;
         OuterRadius = outerRadius;
+        SurfaceRadius = surfaceRadius;
         PoleAxis = poleAxis;
         DensityFactor = densityFactor;
         FadeStartDistance = fadeStartDistance;
