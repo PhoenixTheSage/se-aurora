@@ -123,7 +123,8 @@ float NightAt(float3 posCamRel, float3 center, float radius)
 {
     if (NightOnly < 0.5)
         return 1.0;
-    return 1.0 - AnomalySunVisibility(posCamRel, center, max(radius, 1.0));
+    float r = max(radius, 1.0);
+    return 1.0 - AnomalySunTransmittance(posCamRel, center, r);
 }
 
 void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 output : SV_Target0)
