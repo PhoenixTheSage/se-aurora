@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using SharpDX;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
@@ -55,8 +57,16 @@ public sealed class AuroraTexture : ISrvBindable, IDisposable
             handle.Free();
         }
 
-        texture.DebugName = name;
-        srv = new ShaderResourceView(MyRender11.DeviceInstance, texture);
+        try
+        {
+            texture.DebugName = name;
+            srv = new ShaderResourceView(MyRender11.DeviceInstance, texture);
+        }
+        catch
+        {
+            texture.Dispose();
+            throw;
+        }
     }
 
     public void Dispose()
@@ -80,11 +90,34 @@ public static class AuroraTextures
 
     private static AuroraTexture noise;
     private static AuroraTexture ramp;
+    // The pixels are device-independent. Keep the completed task (and its exact
+    // seeded bytes) across device recreation; never wait for it on the render thread.
+    private static Task<byte[]> noisePixels;
     private static int rampVersion;
     private static int bakedRampVersion = -1;
 
     public static AuroraTexture Noise => noise;
     public static AuroraTexture Ramp => ramp;
+
+    public static void WarmupCpuNoise()
+    {
+        lock (CreateLock)
+        {
+            if (noisePixels == null)
+                noisePixels = Task.Run(GenerateNoisePixels);
+        }
+    }
+
+    /// <summary>Publish a consistent live pair, serialized with device teardown.</summary>
+    public static bool WithTextures(Func<AuroraTexture, AuroraTexture, bool> publish)
+    {
+        lock (CreateLock)
+        {
+            if (noise == null || ramp == null)
+                return false;
+            return publish(noise, ramp);
+        }
+    }
 
     /// <summary>Called (from any thread) when a color setting changes; the LUT is re-baked on next use.</summary>
     public static void MarkRampDirty()
@@ -93,10 +126,11 @@ public static class AuroraTextures
     }
 
     /// <summary>Called on device reset and session-independent teardown; textures are recreated lazily.</summary>
-    public static void Invalidate()
+    public static void Invalidate(Action beforeDispose = null)
     {
         lock (CreateLock)
         {
+            beforeDispose?.Invoke();
             noise?.Dispose();
             noise = null;
             ramp?.Dispose();
@@ -106,27 +140,48 @@ public static class AuroraTextures
     }
 
     /// <summary>Creates any missing texture. D3D11 devices are free-threaded, so this is safe off the immediate context.</summary>
-    public static void EnsureCreated(Config config)
+    public static bool EnsureCreated(Config config)
     {
-        int wantedVersion = rampVersion;
-        if (noise != null && ramp != null && bakedRampVersion == wantedVersion)
-            return;
-
         lock (CreateLock)
         {
-            if (noise == null)
-                noise = CreateNoise();
+            int wantedVersion = Volatile.Read(ref rampVersion);
+            if (noise != null && ramp != null && bakedRampVersion == wantedVersion)
+                return true;
+            WarmupCpuNoise();
+            if (!noisePixels.IsCompleted)
+                return false;
 
-            if (ramp == null || bakedRampVersion != wantedVersion)
+            AuroraTexture newNoise = null;
+            AuroraTexture newRamp = null;
+            try
             {
-                ramp?.Dispose();
-                ramp = CreateRamp(config);
-                bakedRampVersion = wantedVersion;
+                if (noise == null)
+                    newNoise = new AuroraTexture("AuroraPerlin", NoiseSize, NoiseSize,
+                        noisePixels.GetAwaiter().GetResult());
+                if (ramp == null || bakedRampVersion != wantedVersion)
+                    newRamp = CreateRamp(config);
             }
+            catch
+            {
+                newRamp?.Dispose();
+                newNoise?.Dispose();
+                throw;
+            }
+
+            if (newNoise != null)
+                noise = newNoise;
+            if (newRamp != null)
+            {
+                var previous = ramp;
+                ramp = newRamp;
+                bakedRampVersion = wantedVersion;
+                previous?.Dispose();
+            }
+            return true;
         }
     }
 
-    private static AuroraTexture CreateNoise()
+    private static byte[] GenerateNoisePixels()
     {
         var pixels = new byte[NoiseSize * NoiseSize * 4];
         // R/G: the two difference-cloud layers; B/A: lower-frequency curtain height and vertical offset.
@@ -134,7 +189,7 @@ public static class AuroraTextures
         NoiseGenerator.FillChannel(pixels, NoiseSize, 1, 8, 4, 54321);
         NoiseGenerator.FillChannel(pixels, NoiseSize, 2, 4, 3, 98765);
         NoiseGenerator.FillChannel(pixels, NoiseSize, 3, 4, 3, 56789);
-        return new AuroraTexture("AuroraPerlin", NoiseSize, NoiseSize, pixels);
+        return pixels;
     }
 
     private static AuroraTexture CreateRamp(Config config)

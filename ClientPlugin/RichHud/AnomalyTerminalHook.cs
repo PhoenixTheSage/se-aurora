@@ -177,6 +177,13 @@ internal static class AnomalyTerminalHook
     {
         Set(() =>
         {
+            if (Config.Current.ColorPreset != AuroraColorPreset.Custom)
+            {
+                // Preserve both colors displayed by the pickers when leaving a preset.
+                Config.Current.GetGradientColors(out var activeBottom, out var activeTop);
+                Config.Current.BottomColor = new Color(activeBottom);
+                Config.Current.TopColor = new Color(activeTop);
+            }
             if (bottom)
                 Config.Current.BottomColor = value;
             else

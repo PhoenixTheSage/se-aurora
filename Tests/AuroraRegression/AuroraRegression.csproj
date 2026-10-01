@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFrameworks>net48;net10.0</TargetFrameworks><LangVersion>latest</LangVersion><PlatformTarget>x64</PlatformTarget><NoWarn>CS9113</NoWarn></PropertyGroup>
+ <ItemGroup>
+  <Compile Remove="FakeAnomaly/**"/>
+  <ProjectReference Include="FakeAnomaly/FakeAnomaly.csproj"/>
+  <Compile Include="../../ClientPlugin/Config.cs" Link="Config.cs"/>
+  <Compile Include="../../ClientPlugin/Aurora/*.cs" Exclude="../../ClientPlugin/Aurora/AuroraSampler.cs" Link="Aurora/%(Filename)%(Extension)"/>
+  <Compile Include="../../ClientPlugin/Anomaly/*.cs" Link="Anomaly/%(Filename)%(Extension)"/>
+  <Compile Include="../../ClientPlugin/RichHud/AnomalyTerminalHook.cs" Link="AnomalyTerminalHook.cs"/>
+  <Reference Include="VRage.Math"><HintPath>T:/SteamLibrary/steamapps/common/SpaceEngineers/Bin64/VRage.Math.dll</HintPath></Reference>
+  <Reference Include="VRage.Library"><HintPath>T:/SteamLibrary/steamapps/common/SpaceEngineers/Bin64/VRage.Library.dll</HintPath></Reference>
+  <Reference Include="SharpDX"><HintPath>T:/SteamLibrary/steamapps/common/SpaceEngineers/Bin64/SharpDX.dll</HintPath></Reference>
+  <Reference Include="SharpDX.Direct3D11"><HintPath>T:/SteamLibrary/steamapps/common/SpaceEngineers/Bin64/SharpDX.Direct3D11.dll</HintPath></Reference>
+  <Reference Include="SharpDX.DXGI"><HintPath>T:/SteamLibrary/steamapps/common/SpaceEngineers/Bin64/SharpDX.DXGI.dll</HintPath></Reference>
+ </ItemGroup>
+</Project>

@@ -2,6 +2,7 @@ using System;
 using ClientPlugin.Anomaly;
 using VRageMath;
 using VRageRender;
+using VRage.Utils;
 
 namespace ClientPlugin.Aurora;
 
@@ -12,35 +13,76 @@ namespace ClientPlugin.Aurora;
 public static class AuroraRenderer
 {
     static volatile AuroraSnapshot snapshot;
+    static volatile bool renderFailed;
+    static readonly float[] DisabledUniforms = new float[36];
 
     public static void Publish(AuroraSnapshot value)
     {
         snapshot = value;
+        if (value == null)
+            ResetFailure();
     }
 
+    public static void ResetFailure() => renderFailed = false;
+
     public static void PushUniforms()
+    {
+        if (renderFailed)
+            return;
+        try
+        {
+            PushUniformsCore();
+        }
+        catch (Exception e)
+        {
+            // The host must still see genuine DXGI/device-loss exceptions.
+            if (RenderTraceBind.IsLostDevice(e))
+                throw;
+            renderFailed = true;
+            try { DisablePass(); }
+            catch (Exception cleanup)
+            {
+                if (RenderTraceBind.IsLostDevice(cleanup))
+                    throw;
+            }
+            MyLog.Default.Error($"{Plugin.Name}: render setup failed; disabled until session/device recovery: {e}");
+            RenderTraceBind.Dump("Aurora.PushUniforms", e);
+        }
+    }
+
+    static void DisablePass()
+    {
+        // Disable first, even if clearing stale uniforms subsequently fails.
+        AnomalyBridge.SetPassEnabled(false);
+        AnomalyBridge.SetUniforms(DisabledUniforms);
+    }
+
+    static void PushUniformsCore()
     {
         var snap = snapshot;
         var config = Config.Current;
         if (snap == null || !config.Enabled)
         {
-            AnomalyBridge.SetPassEnabled(false);
-            AnomalyBridge.SetUniforms(new float[32]);
+            DisablePass();
             return;
         }
 
         float fadeFactor = ComputeNightFactor(snap, config) * ComputeDistanceFade(snap);
         if (fadeFactor <= 0f)
         {
-            AnomalyBridge.SetPassEnabled(false);
-            AnomalyBridge.SetUniforms(new float[32]);
+            DisablePass();
             return;
         }
 
-        AuroraTextures.EnsureCreated(config);
-        AnomalyBridge.PublishTextures();
-        AnomalyBridge.SetPassEnabled(true);
-        AnomalyBridge.SetUniforms(PackConstants(snap, config, fadeFactor));
+        if (!AuroraTextures.EnsureCreated(config))
+        {
+            DisablePass();
+            return;
+        }
+        if (!AnomalyBridge.PublishTextures() ||
+            !AnomalyBridge.SetUniforms(PackConstants(snap, config, fadeFactor)) ||
+            !AnomalyBridge.SetPassEnabled(true))
+            throw new InvalidOperationException("Anomaly rejected Aurora render setup");
     }
 
     static float ComputeNightFactor(AuroraSnapshot snap, Config config)
@@ -128,7 +170,8 @@ public static class AuroraRenderer
             Math.Min(config.StepCount, Config.MaxRaymarchSteps), fadeFactor, patchThreshold, config.GroundLight,
             Frac(t * 0.0016), Frac(t * -0.0007), Frac(t * -0.0011), Frac(t * 0.0009),
             // Uniform8: contrast, NightOnly (per-sample sun occultation), hill radius.
-            Math.Max(config.Contrast, 1f), config.NightOnly ? 1f : 0f, snap.SurfaceRadius, 0f,
+            Math.Max(config.Contrast, 1f), config.NightOnly ? 1f : 0f, snap.SurfaceRadius,
+            AnomalyBridge.VelocityDistanceScale,
         };
     }
 }

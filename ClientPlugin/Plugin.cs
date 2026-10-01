@@ -12,8 +12,8 @@ using VRage.Plugins;
 using VRage.Utils;
 
 #if !DEV_BUILD
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.2.2.0")]
+[assembly: AssemblyFileVersion("1.2.2.0")]
 #endif
 
 namespace ClientPlugin;
@@ -32,6 +32,8 @@ public class Plugin : IPlugin
         Instance = this;
         Instance.settingsGenerator = new SettingsGenerator();
         Config.Current.PropertyChanged += OnConfigPropertyChanged;
+        AuroraTextures.WarmupCpuNoise();
+        AuroraRenderer.ResetFailure();
         AnomalyTerminalHook.TryInstall();
     }
 
@@ -40,6 +42,8 @@ public class Plugin : IPlugin
         ConfigStorage.FlushPending(true);
         AuroraRenderer.Publish(null);
         AuroraSampler.OnSessionUnloading();
+        Config.Current.PropertyChanged -= OnConfigPropertyChanged;
+        AnomalyBridge.ReleaseTextures();
         Instance = null;
     }
 

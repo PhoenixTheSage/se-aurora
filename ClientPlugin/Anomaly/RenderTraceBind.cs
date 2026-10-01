@@ -20,6 +20,25 @@ internal static class RenderTraceBind
     static MethodInfo dumpIfLost;
     static bool probed;
 
+    public static bool IsLostDevice(Exception e)
+    {
+        while (e != null)
+        {
+            int code = e is SharpDX.SharpDXException sx ? sx.ResultCode.Code : e.HResult;
+            if (code == unchecked((int)0x887A0005) || code == unchecked((int)0x887A0006) ||
+                code == unchecked((int)0x887A0007) || code == unchecked((int)0x887A0020))
+                return true;
+            if (e is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.InnerExceptions)
+                    if (IsLostDevice(inner))
+                        return true;
+            }
+            e = e.InnerException;
+        }
+        return false;
+    }
+
     public static void Begin(string name)
     {
         Ensure();

@@ -32,6 +32,7 @@ static const float PatchFeather = 0.12;
 #define Contrast AnomalyPassUniform8.x
 #define NightOnly AnomalyPassUniform8.y
 #define PlanetRadius AnomalyPassUniform8.z
+#define VelocityDistanceScale AnomalyPassUniform8.w
 #define PerlinTex AnomalyPackSrv0
 #define ColorRamp AnomalyPackSrv1
 
@@ -81,14 +82,16 @@ float3 UnpackGbufferNormal(float2 enc)
     return n;
 }
 
-void WriteColor(inout float4 output, float3 color, float hitT)
+void WriteColor(out float4 output, float3 color, float hitT)
 {
     if (!all(isfinite(color)) || !isfinite(hitT))
     {
         output = 0;
         return;
     }
-    output = float4(color, max(hitT, 0));
+    // Positive alpha claims volume motion. Ground-only tint keeps geometry MVs.
+    // The bridge negotiates this scale with Anomaly; older hosts still use metres.
+    output = float4(color, max(hitT, 0) / max(VelocityDistanceScale, 1));
 }
 
 float PatchMask(float2 uvBase)
@@ -194,7 +197,7 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
 
     if (tMax <= tMin)
     {
-        WriteColor(output, ground * intensity, hasScene ? sceneDist : 0);
+        WriteColor(output, ground * intensity, 0);
         return;
     }
 
@@ -214,7 +217,7 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
     float marchLength = len0 + len1;
     if (marchLength <= 0)
     {
-        WriteColor(output, ground * intensity, hasScene ? sceneDist : 0);
+        WriteColor(output, ground * intensity, 0);
         return;
     }
 
@@ -239,7 +242,7 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
         camToVolume, 0.0, max(shellThickness * 2.0, 1e-5));
     if (steps <= 0)
     {
-        WriteColor(output, ground * intensity, hasScene ? sceneDist : 0);
+        WriteColor(output, ground * intensity, 0);
         return;
     }
     float stepLen = marchLength / (float)steps;
@@ -308,8 +311,8 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
 
     if (hitWeight > 1e-6)
         hitT /= hitWeight;
-    else if (hasScene)
-        hitT = sceneDist;
+    else
+        hitT = 0;
 
     // IsolatedAdd is emission. 1-exp(-optical) saturates in-band pixels to
     // ~Intensity and the merge lifts LBuffer (a fullscreen brighten on SDR).
@@ -318,5 +321,8 @@ void __pixel_shader(float4 pos : SV_Position, float2 uv : TEXCOORD0, out float4 
     float3 optical = accum * (stepLen / shellThickness);
     float3 color = intensity * optical;
     color = color / (1.0 + color);
+    // A zero-color custom gradient is also a non-contributing volume pixel.
+    if (!any(color > 0))
+        hitT = 0;
     WriteColor(output, color + ground * intensity, hitT);
 }
