@@ -72,6 +72,30 @@ render resolution was reduced, and live game FPS has not been measured.
 
 ## Reproduce and complete acceptance
 
+### Thruster billboard follow-up
+
+The user subsequently reported that enabling Aurora suppresses thruster
+billboards. The rendering call chain exposes a shared Anomaly state leak:
+`MyTransparentRendering.Render` binds pixel frame b0 before atmospheres;
+billboards inherit that binding. Isolated velocity contribution overwrites and
+clears it, and fullscreen draws change the standard pixel samplers. Billboard
+soft-particle projection/fade therefore runs without its frame data.
+
+Anomaly now restores vertex/pixel frame constants and standard/shadow pixel
+samplers in the AfterAtmosphere slot's `finally`, including tenant failures.
+It uses Keen's cache-aware setters on the supplied deferred rc. Aurora's shader,
+appearance, slot and temporal policy are unchanged. This fix requires the newly
+built Anomaly DLL; the previously built Aurora remains compatible.
+
+32 new D3D11 WARP assertions pass on each runtime, including immediate/deferred
+contexts, missing-b0 zero emission, exact restored consumer pixels, sampler
+addressing, fault cleanup and repeated cached bindings. This tests linked
+production restoration with engine adapters, not a live thruster scene. Both
+Anomaly runtime builds pass with existing warnings. The fix is local; in-game
+confirmation and installation remain pending.
+
+### Acceptance steps
+
 Build Anomaly first, then Aurora, using Release with
 `-p:RunPostBuildEvent=Never` and the existing `RepoRoot`/`Bin64` overrides.
 Run both test projects in `Tests` for net10.0 and net48; see their READMEs.
