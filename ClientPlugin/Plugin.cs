@@ -12,8 +12,8 @@ using VRage.Plugins;
 using VRage.Utils;
 
 #if !DEV_BUILD
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.3.1.0")]
+[assembly: AssemblyFileVersion("1.3.1.0")]
 #endif
 
 namespace ClientPlugin;
@@ -25,6 +25,7 @@ public class Plugin : IPlugin
     public static Plugin Instance { get; private set; }
     private SettingsGenerator settingsGenerator;
     private bool updateFailed;
+    internal string UpdateStatus { get; private set; } = "ready";
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     public void Init(object gameInstance)
@@ -49,6 +50,7 @@ public class Plugin : IPlugin
 
     public void Update()
     {
+        PluginStatusPage.TryInstall("Aurora Borealis", Config.ShowStatus);
         AnomalyRenderer.Observe();
         AnomalyTerminalHook.TryInstall();
         ConfigStorage.FlushPending();
@@ -63,6 +65,7 @@ public class Plugin : IPlugin
         catch (Exception e)
         {
             updateFailed = true;
+            UpdateStatus = "failed: " + e.GetBaseException().Message;
             AuroraRenderer.Publish(null);
             MyLog.Default.Error($"{Name}: Update failed, disabling for this session: {e}");
         }

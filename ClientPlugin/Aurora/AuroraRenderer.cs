@@ -13,6 +13,9 @@ public static class AuroraRenderer
 {
     static volatile AuroraSnapshot snapshot;
     static volatile bool renderFailed;
+    static string lastFailure;
+    public static string Status => renderFailed ? "failed: " + lastFailure :
+        snapshot == null ? "waiting for an eligible world snapshot" : "snapshot available";
     static readonly float[] DisabledUniforms = new float[36];
 
     public static void Publish(AuroraSnapshot value)
@@ -22,7 +25,7 @@ public static class AuroraRenderer
             ResetFailure();
     }
 
-    public static void ResetFailure() => renderFailed = false;
+    public static void ResetFailure() { renderFailed = false; lastFailure = null; }
 
     public static void PushUniforms()
     {
@@ -37,6 +40,7 @@ public static class AuroraRenderer
             // The host must still see genuine DXGI/device-loss exceptions.
             if (RenderTraceBind.IsLostDevice(e))
                 throw;
+            lastFailure = e.GetBaseException().Message;
             renderFailed = true;
             try { DisablePass(); }
             catch (Exception cleanup)

@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM Parameters: NAME SOURCE [TFM]
+REM Parameters: NAME SOURCE [TFM] [PULSAR]
 if "%~2" == "" (
     echo ERROR: Missing required parameters
     exit /b 1
@@ -25,7 +25,8 @@ if not exist "%SRCFILE%" (
 REM Route by target framework:
 REM   net4x  (.NET Framework) -> Pulsar\Legacy\Local
 REM   others (.NET 5+)        -> Pulsar\Interim\Local (only if Pulsar\Interim exists)
-set "PULSAR=%AppData%\Pulsar"
+set "PULSAR=%~4"
+if not defined PULSAR set "PULSAR=%AppData%\Pulsar"
 set "EDITION=Interim"
 echo(%TFM% | findstr /b /i "net4" >nul && set "EDITION=Legacy"
 if "%TFM%"=="" set "EDITION=Legacy"

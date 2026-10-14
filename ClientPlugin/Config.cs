@@ -56,6 +56,21 @@ public class Config : INotifyPropertyChanged
 
     public readonly string Title = "Aurora";
 
+    [Separator("Status")]
+    [Button(label: "Show Status", description: "Initialization and diagnostics for the active renderer")]
+    public static void ShowStatus()
+    {
+        var text = PluginStatusPage.RendererLine + "\n" +
+            "Plugin initialized: " + (Plugin.Instance != null) + "\n" +
+            "Enabled: " + Current.Enabled + "  Quality: " + Current.Quality +
+            "\nIntensity: " + Current.Intensity + "  HDR lift: " + Current.HdrLift +
+            "\nUpdate: " + (Plugin.Instance?.UpdateStatus ?? "not initialized") +
+            "\nUniforms: " + Aurora.AuroraRenderer.Status +
+            "\nProgram: " + PluginStatusPage.ProgramStatus(Anomaly.AnomalyBridge.PassId) + "\n" +
+            "Rich HUD: " + PluginStatusPage.Status;
+        Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(new PluginStatusScreen(text, Plugin.Name + " Status"));
+    }
+
     [Separator("Aurora Borealis")]
 
     [Checkbox(description: "Master switch for the aurora effect")]
