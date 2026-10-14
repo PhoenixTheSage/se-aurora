@@ -35,6 +35,8 @@ Please consider supporting my work on Patreon: https://www.patreon.com/semods
         <Id>A9C29274-E447-49EE-881B-C980E6D190FD</Id>
     </DependencyIds>
 
+    <Platforms>Windows,Linux</Platforms>
+
     <!-- Only source code in the Directory entries listed in SourceDirectories is compiled. Exclude any test projects or similar. -->
     <SourceDirectories>
         <Directory>ClientPlugin</Directory>

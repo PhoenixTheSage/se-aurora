@@ -136,16 +136,12 @@ internal static class AnomalyBridge
 
     static bool PublishOne(string name, object published, AuroraTexture texture)
     {
-        if (published == null || publishedPublish == null || catalogPublish == null || texture == null)
+        if (published == null || catalogPublish == null || texture == null)
             return false;
-        var native = texture.Resource != null ? texture.Resource.NativePointer : IntPtr.Zero;
-        publishedPublish.Invoke(published, new object[]
-        {
-            texture,
-            native,
-            texture.Size.X,
-            texture.Size.Y,
-        });
+        var publish = published.GetType().GetMethod("PublishRgba8", BindingFlags.Public | BindingFlags.Instance);
+        if (publish == null || texture.Rgba == null)
+            return false;
+        publish.Invoke(published, new object[] { texture.Rgba, texture.Size.X, texture.Size.Y });
         return catalogPublish.Invoke(null, new object[] { PackId, name, published }) is true;
     }
 

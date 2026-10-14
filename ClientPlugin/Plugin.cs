@@ -12,8 +12,8 @@ using VRage.Plugins;
 using VRage.Utils;
 
 #if !DEV_BUILD
-[assembly: AssemblyVersion("1.2.2.0")]
-[assembly: AssemblyFileVersion("1.2.2.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 #endif
 
 namespace ClientPlugin;
@@ -49,13 +49,16 @@ public class Plugin : IPlugin
 
     public void Update()
     {
+        AnomalyRenderer.Observe();
         AnomalyTerminalHook.TryInstall();
         ConfigStorage.FlushPending();
-        if (updateFailed)
+        if (AnomalyRenderer.LinuxRequiresGuest || updateFailed)
             return;
         try
         {
             AuroraSampler.Update();
+            if (AnomalyRenderer.AllowGuestWork)
+                AuroraRenderer.PushUniforms();
         }
         catch (Exception e)
         {

@@ -1,7 +1,6 @@
 using System;
 using ClientPlugin.Anomaly;
 using VRageMath;
-using VRageRender;
 using VRage.Utils;
 
 namespace ClientPlugin.Aurora;
@@ -93,15 +92,15 @@ public static class AuroraRenderer
         // Cheap whole-pass gate. The shader still occults per sample so a
         // terminator view cannot IsolatedAdd the sunlit disk.
         var up = (Vector3)Vector3D.Normalize(
-            MyRender11.Environment.Matrices.CameraPosition - snap.PlanetCenter);
-        var dirToSun = -MyRender11.Environment.Data.EnvironmentLight.SunLightDirection;
+            AnomalyScene.Camera() - snap.PlanetCenter);
+        var dirToSun = -AnomalyScene.SunLightDirection();
         float elevation = up.Dot(dirToSun);
         return MathHelper.Clamp((0.05f - elevation) / 0.20f, 0f, 1f);
     }
 
     static float ComputeDistanceFade(AuroraSnapshot snap)
     {
-        float distance = (float)(MyRender11.Environment.Matrices.CameraPosition - snap.PlanetCenter).Length();
+        float distance = (float)(AnomalyScene.Camera() - snap.PlanetCenter).Length();
         if (distance <= snap.FadeStartDistance)
             return 1f;
         return MathHelper.Clamp(
@@ -114,7 +113,7 @@ public static class AuroraRenderer
         if (tiltDegrees <= 0f)
             return pole;
 
-        var dirToSun = -MyRender11.Environment.Data.EnvironmentLight.SunLightDirection;
+        var dirToSun = -AnomalyScene.SunLightDirection();
         var sunPerp = dirToSun - pole * pole.Dot(dirToSun);
         float length = sunPerp.Length();
         if (length < 1e-3f)
@@ -127,7 +126,7 @@ public static class AuroraRenderer
 
     static float[] PackConstants(AuroraSnapshot snap, Config config, float fadeFactor)
     {
-        var centerRel = (Vector3)(snap.PlanetCenter - MyRender11.Environment.Matrices.CameraPosition);
+        var centerRel = (Vector3)(snap.PlanetCenter - AnomalyScene.Camera());
 
         var pole = ComputeMagneticAxis(snap.PoleAxis, config.MagneticAxisTilt);
         var reference = Math.Abs(pole.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY;
@@ -150,7 +149,7 @@ public static class AuroraRenderer
         double rate2X = -0.0035 * density;
         double rate2Y = 0.0025 * density;
 
-        double t = MyCommon.FrameTime.Seconds * config.AnimationSpeed;
+        double t = AnomalyScene.FrameSeconds() * config.AnimationSpeed;
         float Frac(double v) => (float)(v - Math.Floor(v));
         float coverage = MathHelper.Clamp(config.Coverage, 0f, 1f);
         float patchThreshold = 0.9f - 0.8f * coverage;

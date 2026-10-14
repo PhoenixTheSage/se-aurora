@@ -24,7 +24,7 @@ internal static class RenderTraceBind
     {
         while (e != null)
         {
-            int code = e is SharpDX.SharpDXException sx ? sx.ResultCode.Code : e.HResult;
+            int code = e.HResult;
             if (code == unchecked((int)0x887A0005) || code == unchecked((int)0x887A0006) ||
                 code == unchecked((int)0x887A0007) || code == unchecked((int)0x887A0020))
                 return true;

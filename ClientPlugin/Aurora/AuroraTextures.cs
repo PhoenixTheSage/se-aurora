@@ -1,29 +1,19 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using SharpDX;
-using SharpDX.Direct3D11;
-using SharpDX.DXGI;
-using VRage.Render11.Resources;
 using VRageMath;
-using VRageRender;
 
 namespace ClientPlugin.Aurora;
 
 /// <summary>
-/// Minimal <see cref="ISrvBindable"/> adapter around a plugin-created immutable texture,
-/// so it can be bound with rc.PixelShader.SetSrv like any game texture.
+/// CPU RGBA image published through Anomaly's catalog.
 /// </summary>
-public sealed class AuroraTexture : ISrvBindable, IDisposable
+public sealed class AuroraTexture : IDisposable
 {
-    private readonly Texture2D texture;
-    private readonly ShaderResourceView srv;
     private readonly Vector2I size;
 
     public string Name { get; }
-    public SharpDX.Direct3D11.Resource Resource => texture;
-    public ShaderResourceView Srv => srv;
+    public byte[] Rgba { get; private set; }
     public Vector2I Size => size;
     public Vector3I Size3 => new Vector3I(size.X, size.Y, 1);
 
@@ -31,49 +21,10 @@ public sealed class AuroraTexture : ISrvBindable, IDisposable
     {
         Name = name;
         size = new Vector2I(width, height);
-
-        var desc = new Texture2DDescription
-        {
-            Width = width,
-            Height = height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Immutable,
-            BindFlags = BindFlags.ShaderResource,
-            CpuAccessFlags = CpuAccessFlags.None,
-            OptionFlags = ResourceOptionFlags.None,
-        };
-
-        var handle = GCHandle.Alloc(rgbaPixels, GCHandleType.Pinned);
-        try
-        {
-            var data = new DataRectangle(handle.AddrOfPinnedObject(), width * 4);
-            texture = new Texture2D(MyRender11.DeviceInstance, desc, new[] { data });
-        }
-        finally
-        {
-            handle.Free();
-        }
-
-        try
-        {
-            texture.DebugName = name;
-            srv = new ShaderResourceView(MyRender11.DeviceInstance, texture);
-        }
-        catch
-        {
-            texture.Dispose();
-            throw;
-        }
+        Rgba = rgbaPixels;
     }
 
-    public void Dispose()
-    {
-        srv.Dispose();
-        texture.Dispose();
-    }
+    public void Dispose() => Rgba = null;
 }
 
 /// <summary>
