@@ -14,15 +14,18 @@ public static class AuroraRenderer
     static volatile AuroraSnapshot snapshot;
     static volatile bool renderFailed;
     static string lastFailure;
-    public static string Status => renderFailed ? "failed: " + lastFailure :
-        snapshot == null ? "waiting for an eligible world snapshot" : "snapshot available";
+    static string lastSkip = "waiting for an eligible world snapshot";
+    public static string Status => renderFailed ? "failed: " + lastFailure : lastSkip;
     static readonly float[] DisabledUniforms = new float[36];
 
     public static void Publish(AuroraSnapshot value)
     {
         snapshot = value;
         if (value == null)
+        {
+            lastSkip = "waiting for an eligible world snapshot";
             ResetFailure();
+        }
     }
 
     public static void ResetFailure() { renderFailed = false; lastFailure = null; }
@@ -66,19 +69,24 @@ public static class AuroraRenderer
         var config = Config.Current;
         if (snap == null || !config.Enabled)
         {
+            lastSkip = !config.Enabled ? "disabled in settings" : "waiting for an eligible atmospheric planet";
             DisablePass();
             return;
         }
 
-        float fadeFactor = ComputeNightFactor(snap, config) * ComputeDistanceFade(snap);
+        float night = ComputeNightFactor(snap, config);
+        float distance = ComputeDistanceFade(snap);
+        float fadeFactor = night * distance;
         if (fadeFactor <= 0f)
         {
+            lastSkip = night <= 0f ? "hidden by Night only (sunlit camera)" : "outside distance fade range";
             DisablePass();
             return;
         }
 
         if (!AuroraTextures.EnsureCreated(config))
         {
+            lastSkip = "waiting for CPU noise textures";
             DisablePass();
             return;
         }
@@ -86,6 +94,7 @@ public static class AuroraRenderer
             !AnomalyBridge.SetUniforms(PackConstants(snap, config, fadeFactor)) ||
             !AnomalyBridge.SetPassEnabled(true))
             throw new InvalidOperationException("Anomaly rejected Aurora render setup");
+        lastSkip = "textures and uniforms submitted to Anomaly";
     }
 
     static float ComputeNightFactor(AuroraSnapshot snap, Config config)

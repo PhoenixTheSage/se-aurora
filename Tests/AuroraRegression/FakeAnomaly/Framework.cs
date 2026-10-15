@@ -33,6 +33,10 @@ namespace ClientPlugin.Buffers
     public sealed class PublishedBuffer
     {
         public object Srv;
+        public byte[] Rgba;
+        public static Exception UploadFailure;
+        public void PublishRgba8(byte[] rgba, int width, int height)
+        { if (UploadFailure != null) throw UploadFailure; Rgba = rgba; }
         public void Publish(object srv, IntPtr native, int width, int height) { Srv = srv; }
     }
     public static class BufferCatalog
@@ -44,5 +48,17 @@ namespace ClientPlugin.Buffers
         public static bool Publish(string pack, string name, PublishedBuffer value) { PublishCalls++; Entries[name] = value; return true; }
         public static void Unpublish(string pack, string name) { Entries.Remove(name); }
         public static void RegisterLifetime(string pack, Action resolution, Action deviceEnd) { ResolutionChanged = resolution; DeviceEnd = deviceEnd; }
+    }
+}
+namespace ClientPlugin.Backend
+{
+    public static class SceneView
+    {
+        public static double CameraX => 0;
+        public static double CameraY => 0;
+        public static double CameraZ => 150000;
+        public static float SunX => 0;
+        public static float SunY => 0;
+        public static float SunZ => 1;
     }
 }

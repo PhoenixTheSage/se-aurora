@@ -62,22 +62,22 @@ static class Program
    Check(AnomalyBridge.SetPassEnabled(true),"Pass enable failed");int enables=FullscreenPassRegistry.EnabledCalls;
    Check(AnomalyBridge.SetPassEnabled(true)&&FullscreenPassRegistry.EnabledCalls==enables,"Unchanged enabled state renotified");
    for(int i=0;i<20;i++){BufferCatalog.ResolutionChanged();Check(AuroraTextures.EnsureCreated(Config.Current),"DRS made pixels pending");Check(ReferenceEquals(originalNoise,AuroraTextures.Noise)&&ReferenceEquals(originalRamp,AuroraTextures.Ramp),"DRS recreated fixed textures");}
-   Check(!originalNoise.Srv.IsDisposed&&!originalRamp.Srv.IsDisposed,"DRS retired a live texture");
+   Check(originalNoise.Rgba!=null&&originalRamp.Rgba!=null,"DRS retired live CPU pixels");
    Config.Current.NightOnly=false;AuroraRenderer.Publish(new AuroraSnapshot(Vector3D.Zero,61500,63000,Vector3.UnitY,1,800000,1000000,60000));
    AuroraRenderer.PushUniforms();Check(FullscreenPassRegistry.Enabled&&FullscreenPassRegistry.Uniforms[35]==1000,"Renderer did not enable matched distance contract");
-   AuroraTextures.MarkRampDirty();MyRender11.DeviceInstance=null;int errors=VRage.Utils.MyLog.Default.Errors;
+   AuroraTextures.MarkRampDirty();PublishedBuffer.UploadFailure=new InvalidOperationException("upload fixture");int errors=VRage.Utils.MyLog.Default.Errors;
    AuroraRenderer.PushUniforms();
    Check(!FullscreenPassRegistry.Enabled&&FullscreenPassRegistry.Uniforms.All(v=>v==0),"Failed setup retained enabled state/uniforms");
-   Check(ReferenceEquals(originalRamp,AuroraTextures.Ramp)&&!originalRamp.Srv.IsDisposed,"Failed replacement destroyed last good ramp");
+   Check(AuroraTextures.Ramp.Rgba!=null,"Upload failure retired the retry pixels");
    AuroraRenderer.PushUniforms();Check(VRage.Utils.MyLog.Default.Errors==errors+1,"Fault loop retried/logged again");
-   MyRender11.DeviceInstance=device;BufferCatalog.ResolutionChanged();AuroraRenderer.PushUniforms();
-   Check(FullscreenPassRegistry.Enabled&&!ReferenceEquals(originalRamp,AuroraTextures.Ramp)&&originalRamp.Srv.IsDisposed,"Recovery did not replace ramp after success");
+   PublishedBuffer.UploadFailure=null;BufferCatalog.ResolutionChanged();AuroraRenderer.PushUniforms();
+   Check(FullscreenPassRegistry.Enabled&&!ReferenceEquals(originalRamp,AuroraTextures.Ramp)&&originalRamp.Rgba==null,"Recovery did not publish the replacement ramp");
    FullscreenPassRegistry.UniformFailure=new LostException();bool lost=false;
    try{AuroraRenderer.PushUniforms();}catch(LostException){lost=true;}
    Check(lost,"Genuine DXGI error was swallowed");FullscreenPassRegistry.UniformFailure=null;
    Check(RenderTraceBind.IsLostDevice(new AggregateException(new Exception("ordinary"),new LostException())),"Nested device loss not recognized");
    originalNoise=AuroraTextures.Noise;var oldRamp=AuroraTextures.Ramp;BufferCatalog.DeviceEnd();
-   Check(originalNoise.Srv.IsDisposed&&oldRamp.Srv.IsDisposed&&BufferCatalog.Entries.Count==0,"Device-end resource cleanup failed");
+   Check(originalNoise.Rgba==null&&oldRamp.Rgba==null&&BufferCatalog.Entries.Count==0,"Device-end publication and CPU resource cleanup failed");
    timer.Restart();Check(AuroraTextures.EnsureCreated(Config.Current),"Device recreation rebaked pixels");timer.Stop();
    Check(ReferenceEquals(task,typeof(AuroraTextures).GetField("noisePixels",BindingFlags.NonPublic|BindingFlags.Static).GetValue(null)),"Device-end replaced CPU noise task");
    Console.WriteLine("Cached device reupload: "+timer.Elapsed.TotalMilliseconds.ToString("F3")+" ms; initial callback: "+ready);
@@ -85,7 +85,13 @@ static class Program
    FullscreenPassRegistry.AcceptScale=false;typeof(AnomalyBridge).GetField("registered",BindingFlags.NonPublic|BindingFlags.Static).SetValue(null,false);
    Check(AnomalyBridge.TryRegisterPack("test-pack")&&AnomalyBridge.VelocityDistanceScale==1,"Older/rejecting host did not fall back to metres");
    AuroraRenderer.PushUniforms();Check(FullscreenPassRegistry.Uniforms[35]==1,"Fallback encoded kilometre alpha without host decode");
-   AuroraRenderer.Publish(null);AuroraRenderer.PushUniforms();Check(!FullscreenPassRegistry.Enabled,"Session teardown left pass enabled");AnomalyBridge.ReleaseTextures();
+   Config.Current.Enabled=false;AuroraRenderer.PushUniforms();Check(AuroraRenderer.Status.Contains("disabled"),"Disabled setting status is missing");
+   Config.Current.Enabled=true;Config.Current.NightOnly=true;AuroraRenderer.PushUniforms();Check(AuroraRenderer.Status.Contains("submitted"),"Eligible night snapshot was not submitted");
+   AuroraRenderer.Publish(new AuroraSnapshot(new Vector3D(0,0,300000),61500,63000,Vector3.UnitY,1,800000,1000000,60000));
+   AuroraRenderer.PushUniforms();Check(AuroraRenderer.Status.Contains("Night only")&&!FullscreenPassRegistry.Enabled,"Daylight gate status is missing");
+   Config.Current.NightOnly=false;AuroraRenderer.Publish(new AuroraSnapshot(new Vector3D(0,0,2000000),61500,63000,Vector3.UnitY,1,800000,1000000,60000));
+   AuroraRenderer.PushUniforms();Check(AuroraRenderer.Status.Contains("distance")&&!FullscreenPassRegistry.Enabled,"Distance gate status is missing");
+   AuroraRenderer.Publish(null);AuroraRenderer.PushUniforms();Check(!FullscreenPassRegistry.Enabled&&AuroraRenderer.Status.Contains("planet"),"Session teardown left pass enabled or stale status");AnomalyBridge.ReleaseTextures();
   }
   Console.WriteLine("PASS: "+assertions+" Aurora regression assertions, runtime "+Environment.Version);
  }
