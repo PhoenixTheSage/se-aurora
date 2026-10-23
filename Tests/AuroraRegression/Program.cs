@@ -45,6 +45,10 @@ static class Program
  static void Main()
  {
   ColorTransitions();
+  Check(AnomalyScene.FrameSeconds()==0,"Pending renderer must not read DX11 clock");
+  ClientPlugin.Backend.RendererRoute.Active=2;
+  Check(AnomalyScene.FrameSeconds()==0,"Guest animation must wait for neutral clock");
+  Check(!AppDomain.CurrentDomain.GetAssemblies().Any(a=>a.GetName().Name=="VRage.Render11"),"Guest clock loaded DX11 renderer");
   using(var device=new Device(DriverType.Hardware,DeviceCreationFlags.None,FeatureLevel.Level_11_0))
   {
    MyRender11.DeviceInstance=device;

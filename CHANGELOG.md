@@ -1,5 +1,10 @@
 # se-aurora changelog
 
+## 1.3.3 — 2026-10-23
+
+- Prepare renderer uniforms through portable Anomaly callbacks.
+- Skip DX11 clock discovery on pending/Vulkan routes; keep guest animation static pending a neutral host clock and extend route-isolation regressions.
+
 ## 1.3.2 — 2026-10-15
 
 - Report settings-disabled, missing atmospheric planet, daylight, distance fade, pending noise, and submitted states instead of a generic snapshot message.

@@ -12,6 +12,10 @@ static class AnomalyScene
 
     public static double FrameSeconds()
     {
+        // A shared render clock is not exposed yet. Keep the blocked animation
+        // static on Vulkan without loading or consulting the DX11 renderer.
+        if (!ClientPlugin.Anomaly.AnomalyRenderer.AllowDx11Device)
+            return 0d;
         var type = Type.GetType("VRageRender.MyCommon, VRage.Render11");
         var frame = type?.GetProperty("FrameTime", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
         var seconds = frame?.GetType().GetProperty("Seconds")?.GetValue(frame);

@@ -16,7 +16,8 @@ dotnet build Tests/AuroraRegression/AuroraRegression.csproj -c Release -f net48
 ./Tests/AuroraRegression/bin/Release/net48/AuroraRegression.exe
 ```
 
-Expected: 109 assertions per runtime. An intentional catalog-upload failure
+Expected: 112 assertions per runtime, including pending/guest clock isolation.
+An intentional catalog-upload failure
 logs once while testing fail-closed recovery. The harness tests nested device-loss
 classification with an exception, not an actual hardware reset. Requires the
 installed game at the Bin64 path specified in the project.
