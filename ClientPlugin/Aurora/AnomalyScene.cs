@@ -10,10 +10,29 @@ static class AnomalyScene
 
     public static Vector3 SunLightDirection() => new Vector3(ReadF("SunX"), ReadF("SunY"), ReadF("SunZ"));
 
+    static PropertyInfo renderClock;
+    static int clockAssemblies = -1;
+
     public static double FrameSeconds()
     {
-        // A shared render clock is not exposed yet. Keep the blocked animation
-        // static on Vulkan without loading or consulting the DX11 renderer.
+        // Anomaly's RenderClock is the draw time on both hosts (DX11 MyCommon.FrameTime).
+        var assemblies = renderClock == null ? AppDomain.CurrentDomain.GetAssemblies() : null;
+        if (assemblies != null && assemblies.Length != clockAssemblies)
+        {
+            clockAssemblies = assemblies.Length;
+            foreach (var assembly in assemblies)
+            {
+                Type clock = null;
+                try { clock = assembly.GetType("ClientPlugin.Shaders.RenderClock", false); }
+                catch { }
+                renderClock = clock?.GetProperty("FrameSeconds", BindingFlags.Public | BindingFlags.Static);
+                if (renderClock != null)
+                    break;
+            }
+        }
+        if (renderClock != null)
+            return Convert.ToDouble(renderClock.GetValue(null));
+        // Older Anomaly: keep animation static on Vulkan without consulting the DX11 renderer.
         if (!ClientPlugin.Anomaly.AnomalyRenderer.AllowDx11Device)
             return 0d;
         var type = Type.GetType("VRageRender.MyCommon, VRage.Render11");
