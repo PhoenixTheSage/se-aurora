@@ -1,5 +1,10 @@
 # se-aurora changelog
 
+## 1.3.4 — 2026-10-24
+
+- Read animation time from Anomaly RenderClock.FrameSeconds on both renderers.
+- Retain the previous fallback for older hosts without consulting DX11 renderer state on Vulkan.
+
 ## 1.3.3 — 2026-10-23
 
 - Prepare renderer uniforms through portable Anomaly callbacks.
